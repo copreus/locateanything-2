@@ -95,7 +95,28 @@ print("[worker] model loaded, ready for requests.")
 # Input handling
 # ---------------------------------------------------------------------------
 
+DEFAULT_RESIZE_CAP = 1024  # matches the short-side cap used by NVIDIA's own HF Space demo
+
+
+def resize_to_cap(image: Image.Image, short_side_cap: int) -> Image.Image:
+    """Downscale so the shorter side is at most `short_side_cap`, preserving aspect ratio.
+    Never upscales. This is the single biggest lever for inference speed: the vision
+    encoder cost scales with pixel/patch count, and without flash-attn/MagiAttention
+    acceleration, sending a full-resolution screenshot straight into the model is far
+    slower than the resized inputs the demo uses."""
+    w, h = image.size
+    short_side = min(w, h)
+    if short_side <= short_side_cap:
+        return image
+    scale = short_side_cap / short_side
+    new_size = (round(w * scale), round(h * scale))
+    return image.resize(new_size, Image.LANCZOS)
+
+
 def load_image(job_input: dict) -> Image.Image:
+    """Fetches the image at its original resolution. Resizing for the model happens
+    separately in handler() so we can keep the original dimensions around for scaling
+    box/point coordinates back correctly, regardless of what resolution the model saw."""
     if job_input.get("image_base64"):
         data = job_input["image_base64"]
         if data.strip().startswith("data:") and "," in data:
@@ -240,20 +261,24 @@ def handler(job):
     job_input = job.get("input") or {}
 
     try:
-        image = load_image(job_input)
+        original_image = load_image(job_input)
+        width, height = original_image.size  # keep ORIGINAL size for scaling boxes back
+
+        resize_cap = int(job_input.get("resize_cap", DEFAULT_RESIZE_CAP))
+        model_image = resize_to_cap(original_image, resize_cap) if resize_cap > 0 else original_image
+
         question = build_prompt(job_input)
         generation_mode = job_input.get("generation_mode", "hybrid")
         max_new_tokens = int(job_input.get("max_new_tokens", 2048))
         temperature = float(job_input.get("temperature", 0.7))
 
         answer = run_inference(
-            image,
+            model_image,
             question,
             generation_mode=generation_mode,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
         )
-        width, height = image.size
 
         return {
             "answer": answer,
