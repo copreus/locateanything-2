@@ -1,0 +1,7 @@
+{
+  "input": {
+    "task": "detect",
+    "categories": ["animal"],
+    "image_url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"
+  }
+}
