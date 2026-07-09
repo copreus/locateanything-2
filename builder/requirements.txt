@@ -1,11 +1,11 @@
 # RunPod worker SDK
 runpod~=1.7
- 
-# torch/torchvision: plain "pip install torch" pulls a CUDA-enabled build
-# by default on Linux, so no special index URL is needed.
-torch
-torchvision
- 
+
+# torch/torchvision are installed separately in the Dockerfile, pinned to the
+# PyTorch wheel index matching the base image's CUDA version. Do NOT add
+# plain "torch"/"torchvision" lines here -- that's what caused inference to
+# silently fall back to CPU (see Dockerfile comment for details).
+
 # Versions below are exactly what the nvidia/LocateAnything-3B model card
 # specifies (https://huggingface.co/nvidia/LocateAnything-3B#installation).
 # Keep them pinned -- the model's custom trust_remote_code files were
@@ -17,8 +17,7 @@ peft
 decord==0.6.0
 lmdb==1.7.5
 opencv-python-headless==4.11.0.86
- 
+
 # Not in the model card, but needed by our handler.py
 accelerate
 requests
- 
